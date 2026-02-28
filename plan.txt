@@ -1,0 +1,418 @@
+FAIRY TALE PLAYLIST PICKER — PROJECT PLAN
+==========================================
+
+A device for a 4-year-old to browse and play Spotify playlists using a
+rotary encoder and a small LCD screen on a Raspberry Pi Zero WH.
+
+
+HARDWARE SUMMARY
+================
+
+- Raspberry Pi Zero WH (WiFi, BT 4.1, 512MB RAM, pre-soldered headers)
+- Pimoroni Display HAT Mini (2" IPS LCD, 320×240, SPI, 4 buttons, RGB LED)
+- Iduino SE055 rotary encoder (30 detents/revolution, with push button)
+- MicroSD card, micro-USB power supply, jumper wires
+
+
+PART 1: ASSEMBLY
+================
+
+1.1  Wiring the encoder via the Breakout Garden header
+
+    The Display HAT Mini covers the entire 40-pin header when mounted,
+    but it has a 5-pin Breakout Garden edge header on the board. This
+    header exposes:
+        3V3, SDA (GPIO 2), SCL (GPIO 3), INT (GPIO 4), GND
+
+    Key insight: the Display HAT Mini uses SPI for the display and
+    plain GPIO for buttons/LED. It does NOT require I2C. As long as
+    we don't enable I2C in raspi-config, GPIO 2, 3, and 4 are available
+    as regular GPIO pins. GPIO 2 and 3 have fixed 1.8kΩ pull-ups to
+    3.3V on the Pi board — this is actually ideal for the encoder, which
+    needs pull-ups.
+
+    Wiring plan (encoder → Breakout Garden header):
+
+        Encoder pin     Header pin     GPIO
+        -----------     ----------     ----
+        CLK         →   SDA            GPIO 2
+        DT          →   SCL            GPIO 3
+        SW          →   INT            GPIO 4
+        +           →   3V3            (3.3V power)
+        GND         →   GND
+
+    No stacking header, no soldering, no extra parts needed.
+    Just connect the encoder to the Breakout Garden header with
+    jumper wires.
+
+    NOTE: Verify that INT = GPIO 4 by inspecting the HAT's silkscreen
+    or PCB traces when you have it in hand. This is the standard
+    Pimoroni Breakout Garden pinout but should be confirmed.
+
+    IMPORTANT: Do NOT enable I2C in raspi-config — that would claim
+    GPIO 2/3 for the I2C peripheral and make them unavailable as GPIO.
+
+1.2  Mount the Display HAT Mini
+
+    - Push the Display HAT Mini onto the Pi Zero WH's 40-pin header.
+    - Press firmly and evenly. No soldering needed (headers pre-soldered).
+
+1.3  Connect the rotary encoder
+
+    - Use female-to-female jumper wires from the encoder's 5 pins to
+      the Breakout Garden header's 5 pins as described in 1.1.
+    - Route wires neatly so they don't block the display.
+
+1.4  Insert the MicroSD card (after flashing the OS — see Part 2).
+
+1.5  Connect power via micro-USB.
+
+1.6  Physical enclosure (optional, later)
+    - Consider a simple 3D-printed or wooden box with the display visible,
+      the encoder knob accessible, and power cable routed out the back.
+
+
+PART 2: OS & BASE SOFTWARE SETUP
+=================================
+
+2.1  Flash Raspberry Pi OS Lite (32-bit, Bookworm) onto the MicroSD card
+    - Use Raspberry Pi Imager.
+    - In advanced settings, pre-configure:
+        • WiFi credentials
+        • SSH enabled
+        • Hostname (e.g., "fairy")
+        • Username/password
+    - The Pi Zero WH is ARMv6 — must use 32-bit OS.
+
+2.2  First boot & SSH in
+    - Insert card, power on, wait ~90s, SSH in:  ssh <user>@fairy.local
+
+2.3  System updates
+    - sudo apt update && sudo apt upgrade -y
+
+2.4  Enable SPI (for the display), do NOT enable I2C
+    - sudo raspi-config → Interface Options → SPI → Enable
+    - Make sure I2C is NOT enabled (GPIO 2/3/4 must remain as GPIO).
+    - Reboot.
+
+2.5  Install system dependencies
+    - sudo apt install -y python3-pip python3-venv python3-dev \
+        python3-pygame python3-pil python3-numpy libsdl2-dev git
+
+2.6  Create a Python virtual environment for the project
+    - python3 -m venv --system-site-packages ~/fairy-env
+    - source ~/fairy-env/bin/activate
+
+2.7  Install Python libraries
+    - pip install displayhatmini RPi.GPIO Pillow
+
+2.8  Verify the display works
+    - Run one of the Pimoroni displayhatmini examples to confirm the
+      screen is functional.
+
+
+PART 3: HARDWARE TESTING SOFTWARE
+===================================
+
+Before building the actual application, write small standalone test
+scripts to verify each hardware component works. This catches wiring
+and configuration problems early.
+
+3.1  Test script: display (test_display.py)
+    - Initialize the Display HAT Mini.
+    - Fill the screen with solid colors (red, green, blue) in sequence,
+      1 second each.
+    - Draw some text ("Hello!") in the center.
+    - Purpose: confirms SPI works, display is wired correctly, library
+      is installed.
+
+3.2  Test script: buttons (test_buttons.py)
+    - Set up GPIO input for the 4 HAT buttons (A=5, B=6, X=16, Y=24).
+    - Print which button is pressed to the console.
+    - Optionally: show the button name on the display when pressed.
+    - Purpose: confirms button GPIO pins work.
+
+3.3  Test script: rotary encoder (test_encoder.py)
+    - Set up GPIO input for CLK (2), DT (3), SW (4).
+    - On rotation, print direction and a running counter to console.
+    - On button press, print "pressed".
+    - Optionally: show the counter value on the display.
+    - Purpose: confirms encoder wiring is correct, direction detection
+      works, debouncing is adequate.
+
+3.4  Test script: WiFi / network (test_wifi.py)
+    - Check if connected to WiFi (subprocess: iwgetid or ip addr).
+    - Ping an external host (e.g., 8.8.8.8).
+    - Make an HTTPS request (e.g., requests.get to a known URL).
+    - Print results to console and optionally to the display.
+    - Purpose: confirms network connectivity for Spotify API calls.
+
+3.5  Combined hardware test (test_all.py)
+    - Show a status screen on the display with pass/fail for each:
+        • Display: PASS (if you can see this, it works)
+        • WiFi: PASS/FAIL
+        • Encoder: "Turn the knob..." → shows counter
+        • Button: "Press encoder button..." → shows PASS
+        • HAT buttons: "Press A..." → shows PASS
+    - This becomes a diagnostic tool for troubleshooting.
+
+    Run order: 3.1 → 3.2 → 3.3 → 3.4 → 3.5
+
+
+PART 4: SPOTIFY SETUP
+======================
+
+4.1  Spotify Developer App
+    - Go to https://developer.spotify.com/dashboard
+    - Create a new app.
+    - Set redirect URI to http://localhost:8888/callback
+    - Note the Client ID and Client Secret.
+    - REQUIREMENT: Spotify Premium account (needed for playback control).
+
+4.2  Install spotipy
+    - pip install spotipy
+
+4.3  Spotify authentication (one-time, on a desktop machine)
+    - The Spotify Web API uses OAuth2. The first authorization requires a
+      browser to log in and grant permissions.
+    - Approach: run the auth flow once on a desktop/laptop, then copy the
+      cached token file (~/.cache or .cache) to the Pi.
+    - Required scopes:
+        • user-read-playback-state
+        • user-modify-playback-state
+        • playlist-read-private
+        • playlist-read-collaborative
+
+4.4  Verify API access from the Pi
+    - Write a small test script that lists available devices and playlists.
+    - Confirm the Wi-Fi speaker appears as a Spotify Connect device.
+    - Note: the speaker must be powered on and visible in Spotify Connect
+      for the API to target it.
+
+
+PART 5: SOFTWARE ARCHITECTURE
+==============================
+
+The application is a single Python process with three responsibilities:
+
+    ┌──────────────────────────────────────────┐
+    │              Main Event Loop              │
+    │                                           │
+    │  ┌─────────┐  ┌──────────┐  ┌─────────┐  │
+    │  │ Encoder  │  │ Display  │  │ Spotify │  │
+    │  │ Input    │→ │ Renderer │  │ Client  │  │
+    │  └─────────┘  └──────────┘  └─────────┘  │
+    └──────────────────────────────────────────┘
+
+5.1  Modules / files:
+
+    fairy/
+    ├── main.py              # Entry point, event loop
+    ├── encoder.py           # Rotary encoder reading (GPIO)
+    ├── display.py           # Rendering to the Display HAT Mini
+    ├── spotify_client.py    # Spotify Web API wrapper (via spotipy)
+    ├── config.py            # Configuration (playlist IDs, GPIO pins, etc.)
+    ├── assets/              # Playlist cover images (pre-downloaded PNGs)
+    │   ├── playlist_1.png
+    │   ├── playlist_2.png
+    │   └── ...
+    ├── tests/               # Hardware test scripts from Part 3
+    │   ├── test_display.py
+    │   ├── test_buttons.py
+    │   ├── test_encoder.py
+    │   ├── test_wifi.py
+    │   └── test_all.py
+    └── requirements.txt
+
+5.2  Data model:
+
+    - A list of playlists, each with:
+        • name (short, for display)
+        • spotify_uri (e.g. "spotify:playlist:xxxxx")
+        • image file path (local PNG, pre-sized to 320×240 or close)
+
+    - Current state:
+        • selected_index (which playlist the knob is pointing to)
+        • playing (bool — is a playlist currently playing?)
+        • active_playlist_index (which one is playing, if any)
+
+5.3  Flow:
+
+    1. On startup:
+       - Initialize display, encoder, Spotify client.
+       - Load playlist config.
+       - Show the first playlist image on screen.
+
+    2. User turns the knob:
+       - Encoder interrupt fires.
+       - Increment/decrement selected_index (wrapping around).
+       - Update the display with the new playlist's image and name.
+
+    3. User presses the encoder button (or HAT button A):
+       - Look up the selected playlist's Spotify URI.
+       - Call Spotify API: start playback of that playlist on the
+         configured speaker device.
+       - Update display to show "playing" indicator (e.g., highlight border,
+         small icon, or the RGB LED turns green).
+
+    4. Optional: HAT button B = pause/resume, button X = next track.
+
+
+PART 6: IMPLEMENTATION STEPS
+==============================
+
+Step 1 — Encoder driver (encoder.py)
+    - Use RPi.GPIO with edge detection (GPIO.add_event_detect) on CLK pin.
+    - On callback, read DT to determine direction.
+    - Debounce in software (ignore events within ~5ms of each other).
+    - Also detect button press (SW pin, pulled high, active low).
+    - Test: print direction/press to console.
+
+Step 2 — Display driver (display.py)
+    - Initialize DisplayHATMini (from the displayhatmini library).
+    - The library exposes a Pygame-compatible buffer (or PIL image).
+    - Write a function: show_playlist(image_path, name, is_playing)
+        • Load the image (PIL), resize to fit 320×240.
+        • Overlay the playlist name at the bottom (large, readable font).
+        • If playing, show a small indicator.
+        • Blit to the display buffer and update.
+    - Test: cycle through a few test images manually.
+
+Step 3 — Spotify client (spotify_client.py)
+    - Initialize spotipy with cached OAuth token.
+    - Functions:
+        • get_playlists() → list of (name, uri, image_url)
+        • play_playlist(uri, device_id)
+        • pause()
+        • next_track()
+        • get_devices() → list of available Spotify Connect devices
+    - Handle token refresh automatically (spotipy does this).
+    - Handle API errors gracefully (network down, speaker offline, etc.).
+    - Test: call each function from a REPL.
+
+Step 4 — Asset preparation
+    - Either pre-download playlist cover images (from Spotify API or
+      manually), or download them at startup.
+    - Pre-downloading is more reliable and faster at boot.
+    - Resize images to 320×240 and save as PNG in assets/.
+    - Alternative: create custom child-friendly illustrations for each
+      playlist (more recognizable for a 4-year-old than Spotify covers).
+
+Step 5 — Configuration (config.py)
+    - Define the list of playlists with name, URI, image path.
+    - Define GPIO pin numbers.
+    - Define target Spotify device name (the Wi-Fi speaker).
+    - Keep it simple: a Python dict or list, no YAML/JSON files needed.
+
+Step 6 — Main loop (main.py)
+    - Load config, initialize all modules.
+    - Register encoder callbacks that update selected_index and trigger
+      display refresh.
+    - Register button callback that triggers Spotify playback.
+    - Main loop: sleep (or use Pygame event loop) to keep process alive.
+    - Handle graceful shutdown (Ctrl+C / systemd stop).
+
+Step 7 — Auto-start on boot
+    - Create a systemd service:
+        /etc/systemd/system/fairy.service
+    - ExecStart pointing to the venv Python and main.py.
+    - Restart=always so it recovers from crashes.
+    - After=network-online.target to ensure WiFi is up.
+
+Step 8 — Testing & polish
+    - Test full flow: turn knob → see image → press → music plays.
+    - Tune debounce timing for the encoder.
+    - Tune display rendering speed (should be <100ms per image swap).
+    - Test error cases: WiFi drops, speaker is off, Spotify token expires.
+    - Add visual feedback for errors (e.g., red LED, error image on screen).
+
+
+PART 7: OPEN QUESTIONS & RESEARCH NEEDED
+==========================================
+
+R1. Raspberry Pi OS version compatibility
+    - Verify that Bookworm 32-bit works well on Pi Zero WH.
+    - Check if displayhatmini library is compatible with Bookworm.
+    - Fallback: Bullseye 32-bit.
+
+R2. ARMv6 compatibility
+    - Pi Zero WH is ARMv6. Some pip packages may not have pre-built wheels.
+    - May need to compile from source (numpy, Pillow) — could be slow.
+    - Check if system apt packages (python3-pil, python3-numpy) suffice.
+
+R3. Display library choice
+    - The displayhatmini library wraps ST7789 + Pygame.
+    - Alternative: use ST7789 library directly with PIL (no Pygame).
+    - Pygame adds overhead; pure PIL might be lighter on the Zero.
+    - Research which approach performs better on the limited hardware.
+
+R4. Spotify token refresh
+    - OAuth tokens expire after 1 hour. Spotipy should auto-refresh using
+      the refresh token, but verify this works unattended on the Pi.
+    - If issues arise, consider a cron job or wrapper to refresh tokens.
+
+R5. Speaker device discovery
+    - The Spotify API only sees devices that are "active" (recently used
+      or currently playing). If the speaker goes idle, it may disappear
+      from the device list.
+    - Research: does the speaker need to be "woken up" first? Can we send
+      a wake/discover command?
+    - Mitigation: hardcode the device ID if it's stable, or try transferring
+      playback regardless.
+
+R6. Performance on Pi Zero
+    - The Pi Zero WH has a single-core 1GHz ARM11 and 512MB RAM.
+    - Python + Pygame + network calls may be sluggish.
+    - Optimize: pre-load images into memory, minimize per-frame work,
+      use threading for Spotify API calls so the UI stays responsive.
+
+R7. Encoder at 3.3V — verify
+    - The Iduino SE055 is rated for 5V but should work at 3.3V.
+    - The pull-up resistors on the board may be sized for 5V, but
+      GPIO 2/3 have fixed 1.8kΩ pull-ups on the Pi which will help.
+    - GPIO 4 (INT/SW) has no fixed pull-up — enable the internal
+      pull-up in software (GPIO.PUD_UP), or the encoder board's own
+      pull-up may suffice.
+    - Test at 3.3V; if unreliable, add external pull-ups to 3.3V.
+
+R8. Breakout Garden INT pin — verify GPIO 4
+    - Confirm that the INT pin on the Display HAT Mini's Breakout
+      Garden header is GPIO 4. This is the Pimoroni standard but
+      should be verified on the actual hardware (silkscreen, traces,
+      or multimeter continuity test).
+
+
+PART 8: SUGGESTED ORDER OF WORK
+=================================
+
+Phase A — Hardware & OS  (get the Pi running with the display)
+    1. Flash OS to SD card with WiFi pre-configured.
+    2. Boot, SSH in, update.
+    3. Enable SPI, install dependencies.
+    4. Mount Display HAT, wire encoder to Breakout Garden header.
+
+Phase B — Hardware verification  (test each component)
+    5. Write and run test_display.py — confirm screen works.
+    6. Write and run test_buttons.py — confirm HAT buttons work.
+    7. Write and run test_encoder.py — confirm knob and button work.
+    8. Write and run test_wifi.py — confirm network connectivity.
+    9. Write and run test_all.py — combined diagnostic screen.
+
+Phase C — Spotify integration  (get playback control working)
+    10. Create Spotify Developer app, get credentials.
+    11. Run OAuth flow on desktop, copy token to Pi.
+    12. Install spotipy, write and test spotify_client.py on the Pi.
+    13. Verify: can list playlists, start playback on the speaker.
+
+Phase D — Application  (bring it all together)
+    14. Prepare playlist images (download or create).
+    15. Implement display.py — show images and text.
+    16. Implement encoder.py — read knob and button.
+    17. Implement main.py — wire everything together.
+    18. Test the full flow end to end.
+
+Phase E — Productionize
+    19. Set up systemd auto-start service.
+    20. Test cold boot → automatic operation.
+    21. Handle edge cases (network loss, speaker offline, etc.).
+    22. Optional: build a physical enclosure.
