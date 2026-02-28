@@ -58,7 +58,8 @@ else:
 print("\n=== Playlists (first 20) ===")
 playlists = sp.current_user_playlists(limit=20)
 for i, p in enumerate(playlists["items"]):
-    track_count = p["tracks"]["total"]
+    tracks = p.get("tracks", {})
+    track_count = tracks.get("total", "?")
     print(f"  {i+1:2d}. {p['name']} ({track_count} tracks) — uri={p['uri']}")
 
 # 4. Current playback
