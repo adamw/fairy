@@ -97,14 +97,21 @@ PART 2: OS & BASE SOFTWARE SETUP
 
 2.5  Install system dependencies
     - sudo apt install -y python3-pip python3-venv python3-dev \
-        python3-pygame python3-pil python3-numpy libsdl2-dev git
+        python3-pygame python3-pil python3-numpy libsdl2-dev git \
+        libopenblas-dev
+    - libopenblas-dev is needed because pip-installed numpy (pulled in
+      by the st7789 display driver) links against libopenblas.so.0.
 
 2.6  Create a Python virtual environment for the project
     - python3 -m venv --system-site-packages ~/fairy-env
     - source ~/fairy-env/bin/activate
 
 2.7  Install Python libraries
-    - pip install displayhatmini RPi.GPIO Pillow
+    - pip install displayhatmini rpi-lgpio Pillow
+    - NOTE: use rpi-lgpio, NOT RPi.GPIO. The old RPi.GPIO uses the
+      sysfs interface removed in Bookworm kernels, causing
+      "Failed to add edge detection" errors. rpi-lgpio is a
+      drop-in replacement using the newer interface.
 
 2.8  Verify the display works
     - Run one of the Pimoroni displayhatmini examples to confirm the
@@ -165,7 +172,7 @@ PART 4: SPOTIFY SETUP
 4.1  Spotify Developer App
     - Go to https://developer.spotify.com/dashboard
     - Create a new app.
-    - Set redirect URI to http://localhost:8888/callback
+    - Set redirect URI to http://127.0.0.1:8888/callback
     - Note the Client ID and Client Secret.
     - REQUIREMENT: Spotify Premium account (needed for playback control).
 
