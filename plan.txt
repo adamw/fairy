@@ -272,12 +272,17 @@ The application is a single Python process with three responsibilities:
        - Wait for user interaction (knob turn or press).
 
     2. User turns the knob:
-       - If asleep, wake up: turn on backlight, show current playlist.
+       - If asleep, wake up: turn on backlight.
+       - If no playlist was previously selected (first activation),
+         pick a random playlist as the starting selection.
        - Increment/decrement selected_index (wrapping around).
        - Update the display with the new playlist's image and name.
        - Reset the 60s idle timer.
 
     3. User presses the encoder button:
+       - If asleep, wake up: turn on backlight, show current playlist.
+       - If no playlist was previously selected (first activation),
+         pick a random playlist as the starting selection.
        - Look up the selected playlist's Spotify URI.
        - Call Spotify API: start playback of that playlist on the
          configured speaker device.
@@ -293,14 +298,7 @@ The application is a single Python process with three responsibilities:
        - If a playlist is playing, it continues playing on the speaker.
        - Do NOT pause or stop playback.
 
-    5. Wake from sleep (knob turn or button press):
-       - Turn backlight on.
-       - If no playlist was previously selected (first activation),
-         pick a random playlist as the starting selection.
-       - Show the current playlist selection.
-       - Reset the 60s idle timer.
-
-    6. After playlist ends:
+    5. After playlist ends:
        - Nothing more plays. Spotify naturally stops after the last
          track when repeat is off.
        - The device remains in its current state (asleep or browsing).
@@ -310,7 +308,7 @@ PART 6: IMPLEMENTATION STEPS
 ==============================
 
 Step 1 — Encoder driver (encoder.py)
-    - Use RPi.GPIO with edge detection (GPIO.add_event_detect) on CLK pin.
+    - Use rpi-lgpio (drop-in RPi.GPIO replacement) with edge detection on CLK pin.
     - On callback, read DT to determine direction.
     - Debounce in software (ignore events within ~5ms of each other).
     - Also detect button press (SW pin, pulled high, active low).

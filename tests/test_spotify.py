@@ -3,38 +3,32 @@
 
 Verifies: authentication, token refresh, device listing, playlist listing.
 Run on the Pi after copying .spotify_cache from your desktop.
-
-Requires env vars SPOTIPY_CLIENT_ID and SPOTIPY_CLIENT_SECRET,
-or edit them below.
 """
 
+import sys
 import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+import config
 
-SCOPES = " ".join([
-    "user-read-playback-state",
-    "user-modify-playback-state",
-    "playlist-read-private",
-    "playlist-read-collaborative",
-])
-
-CACHE_PATH = os.path.join(os.path.dirname(__file__), "..", ".spotify_cache")
-
-client_id = os.environ.get("SPOTIPY_CLIENT_ID", "")
-client_secret = os.environ.get("SPOTIPY_CLIENT_SECRET", "")
-redirect_uri = os.environ.get("SPOTIPY_REDIRECT_URI", "http://127.0.0.1:8888/callback")
-
-if not client_id or not client_secret:
-    print("Set SPOTIPY_CLIENT_ID and SPOTIPY_CLIENT_SECRET environment variables.")
+if not config.SPOTIFY_CLIENT_ID or not config.SPOTIFY_CLIENT_SECRET:
+    print("Fill in SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET in config.py first.")
     raise SystemExit(1)
 
 auth_manager = SpotifyOAuth(
-    client_id=client_id,
-    client_secret=client_secret,
-    redirect_uri=redirect_uri,
-    scope=SCOPES,
-    cache_path=CACHE_PATH,
+    client_id=config.SPOTIFY_CLIENT_ID,
+    client_secret=config.SPOTIFY_CLIENT_SECRET,
+    redirect_uri=config.SPOTIFY_REDIRECT_URI,
+    scope=" ".join([
+        "user-read-playback-state",
+        "user-modify-playback-state",
+        "playlist-read-private",
+        "playlist-read-collaborative",
+    ]),
+    cache_path=config.SPOTIFY_CACHE_PATH,
 )
 
 sp = spotipy.Spotify(auth_manager=auth_manager)
