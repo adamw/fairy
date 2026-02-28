@@ -211,17 +211,24 @@ The application is a single Python process with three responsibilities:
     │  └─────────┘  └──────────┘  └─────────┘  │
     └──────────────────────────────────────────┘
 
-5.1  Modules / files:
+5.1  Utility: list_playlists.py
+    - A helper script to list all Spotify playlists with names and URIs.
+    - Used to pick the playlist IDs for config.py.
+    - Run once on the Pi:  python list_playlists.py
+
+5.2  Modules / files:
 
     fairy/
     ├── main.py              # Entry point, event loop
     ├── encoder.py           # Rotary encoder reading (GPIO)
     ├── display.py           # Rendering to the Display HAT Mini
     ├── spotify_client.py    # Spotify Web API wrapper (via spotipy)
-    ├── config.py            # Configuration (playlist IDs, GPIO pins, etc.)
-    ├── assets/              # Playlist cover images (pre-downloaded PNGs)
-    │   ├── playlist_1.png
-    │   ├── playlist_2.png
+    ├── cache.py             # Fetch + cache playlist metadata & images
+    ├── config.py            # Configuration (playlist URIs, GPIO pins, etc.)
+    ├── list_playlists.py    # Utility: list all playlists for picking URIs
+    ├── cache/               # Auto-generated: cached metadata + images
+    │   ├── metadata.json
+    │   ├── <playlist_id>.png
     │   └── ...
     ├── tests/               # Hardware test scripts from Part 3
     │   ├── test_display.py
@@ -231,38 +238,72 @@ The application is a single Python process with three responsibilities:
     │   └── test_all.py
     └── requirements.txt
 
-5.2  Data model:
+5.3  Data model:
 
-    - A list of playlists, each with:
-        • name (short, for display)
-        • spotify_uri (e.g. "spotify:playlist:xxxxx")
-        • image file path (local PNG, pre-sized to 320×240 or close)
+    - Configuration (config.py): just a list of Spotify URIs.
+        PLAYLISTS = [
+            "spotify:playlist:xxxxx",
+            "spotify:playlist:yyyyy",
+        ]
+
+    - At startup, fetch playlist metadata from the Spotify API:
+        • name
+        • cover image URL
+      Cache this to a local file (e.g., cache/metadata.json) so that
+      subsequent boots don't need API calls if the cache exists.
+      Also download and cache cover images (e.g., cache/<playlist_id>.png),
+      resized to 320×240.
 
     - Current state:
         • selected_index (which playlist the knob is pointing to)
         • playing (bool — is a playlist currently playing?)
         • active_playlist_index (which one is playing, if any)
+        • asleep (bool — screen is off after idle timeout)
 
-5.3  Flow:
+    - Device states:
+        ASLEEP   → screen off, backlight off, waiting for knob turn
+        BROWSING → screen on, showing playlist image + name, idle timer running
+        PLAYING  → a playlist has been started, screen stays on briefly then sleeps
 
-    1. On startup:
-       - Initialize display, encoder, Spotify client.
-       - Load playlist config.
-       - Show the first playlist image on screen.
+5.4  Flow:
+
+    1. On boot:
+       - Initialize everything, enter ASLEEP state (screen off).
+       - Wait for user interaction (knob turn or press).
 
     2. User turns the knob:
-       - Encoder interrupt fires.
+       - If asleep, wake up: turn on backlight, show current playlist.
        - Increment/decrement selected_index (wrapping around).
        - Update the display with the new playlist's image and name.
+       - Reset the 60s idle timer.
 
-    3. User presses the encoder button (or HAT button A):
+    3. User presses the encoder button:
        - Look up the selected playlist's Spotify URI.
        - Call Spotify API: start playback of that playlist on the
          configured speaker device.
-       - Update display to show "playing" indicator (e.g., highlight border,
-         small icon, or the RGB LED turns green).
+       - Update display to show "playing" indicator (e.g., highlight
+         border, small icon, or RGB LED turns green).
+       - Reset the 60s idle timer.
+       - Spotify repeat mode should be OFF so that playback stops
+         after the last track in the playlist.
 
-    4. Optional: HAT button B = pause/resume, button X = next track.
+    4. Idle timeout (60s with no knob/button interaction):
+       - Turn off the backlight (screen goes dark).
+       - Enter ASLEEP state.
+       - If a playlist is playing, it continues playing on the speaker.
+       - Do NOT pause or stop playback.
+
+    5. Wake from sleep (knob turn or button press):
+       - Turn backlight on.
+       - If no playlist was previously selected (first activation),
+         pick a random playlist as the starting selection.
+       - Show the current playlist selection.
+       - Reset the 60s idle timer.
+
+    6. After playlist ends:
+       - Nothing more plays. Spotify naturally stops after the last
+         track when repeat is off.
+       - The device remains in its current state (asleep or browsing).
 
 
 PART 6: IMPLEMENTATION STEPS
@@ -288,35 +329,43 @@ Step 2 — Display driver (display.py)
 Step 3 — Spotify client (spotify_client.py)
     - Initialize spotipy with cached OAuth token.
     - Functions:
-        • get_playlists() → list of (name, uri, image_url)
-        • play_playlist(uri, device_id)
-        • pause()
-        • next_track()
+        • play_playlist(uri, device_id) — start playlist, set repeat off
         • get_devices() → list of available Spotify Connect devices
+    - On play_playlist: also call sp.repeat("off") so playback stops
+      after the last track in the playlist.
     - Handle token refresh automatically (spotipy does this).
     - Handle API errors gracefully (network down, speaker offline, etc.).
     - Test: call each function from a REPL.
 
-Step 4 — Asset preparation
-    - Either pre-download playlist cover images (from Spotify API or
-      manually), or download them at startup.
-    - Pre-downloading is more reliable and faster at boot.
-    - Resize images to 320×240 and save as PNG in assets/.
-    - Alternative: create custom child-friendly illustrations for each
-      playlist (more recognizable for a 4-year-old than Spotify covers).
+Step 4 — Playlist cache (cache.py)
+    - On startup, for each URI in config.PLAYLISTS:
+        • Call Spotify API to get playlist name and cover image URL.
+        • Save metadata to cache/metadata.json.
+        • Download cover image, resize to 320×240, save to cache/<id>.png.
+    - If cache already exists and is populated, skip API calls and use
+      cached data. This makes subsequent boots fast and offline-capable.
+    - Provide a way to force-refresh (e.g., delete cache dir or a flag).
 
 Step 5 — Configuration (config.py)
-    - Define the list of playlists with name, URI, image path.
-    - Define GPIO pin numbers.
-    - Define target Spotify device name (the Wi-Fi speaker).
-    - Keep it simple: a Python dict or list, no YAML/JSON files needed.
+    - PLAYLISTS: list of Spotify URIs (just the URIs, nothing else).
+    - GPIO pin numbers.
+    - Target Spotify device ID (the Wi-Fi speaker).
+    - Cache directory path.
 
 Step 6 — Main loop (main.py)
     - Load config, initialize all modules.
-    - Register encoder callbacks that update selected_index and trigger
-      display refresh.
-    - Register button callback that triggers Spotify playback.
-    - Main loop: sleep (or use Pygame event loop) to keep process alive.
+    - On startup, pick a random playlist as the initial selection.
+    - Register encoder callbacks that:
+        • Wake from sleep if asleep (turn on backlight).
+        • Update selected_index and trigger display refresh.
+        • Reset the 60s idle timer.
+    - Register button callback that:
+        • Wake from sleep if asleep.
+        • Trigger Spotify playback (play_playlist + repeat off).
+        • Reset the 60s idle timer.
+    - Idle timer: after 60s with no interaction, turn off backlight.
+      Do NOT stop playback — music continues on the speaker.
+    - Main loop: check idle timer, keep process alive.
     - Handle graceful shutdown (Ctrl+C / systemd stop).
 
 Step 7 — Auto-start on boot
@@ -423,3 +472,21 @@ Phase E — Productionize
     20. Test cold boot → automatic operation.
     21. Handle edge cases (network loss, speaker offline, etc.).
     22. Optional: build a physical enclosure.
+
+Phase F — Documentation
+    23. Write operating instructions (USAGE.md):
+        • How to use the device (turn knob to browse, press to play,
+          screen sleeps after 60s, music continues).
+        • How to add a new playlist:
+            1. Run list_playlists.py to find the URI.
+            2. Add the URI to config.py.
+            3. Delete the cache/ directory (or restart — cache
+               auto-fetches missing playlists).
+            4. Restart the service.
+        • How to remove a playlist:
+            1. Remove the URI from config.py.
+            2. Restart the service.
+        • How to change the target speaker (update device ID in config).
+        • How to re-authenticate if the Spotify token stops working.
+        • How to check WiFi / troubleshoot (run test scripts).
+        • How to update the software (git pull, restart service).
