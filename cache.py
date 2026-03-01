@@ -52,13 +52,20 @@ def _download_image(url, dest_path):
 
 
 def _fetch_metadata(sp, uri_type, item_id):
-    """Fetch name and image URL from Spotify API for a playlist or album."""
-    if uri_type == "album":
+    """Fetch name and image URL from Spotify API."""
+    if uri_type == "track":
+        data = sp.track(item_id)
+        name = data["name"]
+        # Track images come from the album
+        images = data.get("album", {}).get("images", [])
+    elif uri_type == "album":
         data = sp.album(item_id)
+        name = data["name"]
+        images = data.get("images", [])
     else:
         data = sp.playlist(item_id, fields="name,images")
-    name = data["name"]
-    images = data.get("images", [])
+        name = data["name"]
+        images = data.get("images", [])
     image_url = images[0]["url"] if images else None
     return name, image_url
 

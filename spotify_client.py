@@ -22,16 +22,23 @@ def create_client():
     return spotipy.Spotify(auth_manager=auth_manager)
 
 
-def play_playlist(sp, uri):
-    """Start playback of a playlist on the configured device.
+def play(sp, uri):
+    """Start playback on the configured device.
 
+    Handles playlists, albums, and individual tracks.
     Sets repeat to off so playback stops after the last track.
     """
     try:
-        sp.start_playback(
-            device_id=config.SPOTIFY_DEVICE_ID,
-            context_uri=uri,
-        )
+        if uri.startswith("spotify:track:"):
+            sp.start_playback(
+                device_id=config.SPOTIFY_DEVICE_ID,
+                uris=[uri],
+            )
+        else:
+            sp.start_playback(
+                device_id=config.SPOTIFY_DEVICE_ID,
+                context_uri=uri,
+            )
         sp.repeat("off", device_id=config.SPOTIFY_DEVICE_ID)
     except spotipy.exceptions.SpotifyException as e:
         print(f"Spotify error: {e}")

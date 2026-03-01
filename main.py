@@ -74,7 +74,7 @@ class App:
         self._reset_timer()
 
         p = self.playlists[self.selected_index]
-        spotify_client.play_playlist(self.sp, p["uri"])
+        spotify_client.play(self.sp, p["uri"])
         self.playing_index = self.selected_index
         self.display.set_led(0, 0.1, 0)  # green = playing
         self._refresh_display()
