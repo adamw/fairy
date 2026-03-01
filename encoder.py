@@ -42,13 +42,16 @@ class Encoder:
 
     def _encoder_cb(self, channel):
         now = time.time() * 1000
-        if now - self._last_event_time < ENCODER_DEBOUNCE_MS:
+        elapsed = now - self._last_event_time
+        clk = GPIO.input(config.PIN_CLK)
+        dt = GPIO.input(config.PIN_DT)
+        if elapsed < ENCODER_DEBOUNCE_MS:
+            log.debug("Encoder FILTERED: clk=%d dt=%d elapsed=%.1fms", clk, dt, elapsed)
             return
         self._last_event_time = now
 
-        dt = GPIO.input(config.PIN_DT)
         direction = 1 if dt else -1
-        log.debug("Encoder turn: dt=%d, direction=%d", dt, direction)
+        log.debug("Encoder ACCEPTED: clk=%d dt=%d elapsed=%.1fms direction=%d", clk, dt, elapsed, direction)
         if self._on_turn:
             self._on_turn(direction)
 
