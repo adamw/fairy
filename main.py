@@ -63,7 +63,6 @@ class App:
         log.info("Waking up")
         self.asleep = False
         self.playing_index = None
-        self.display.set_backlight(True)
         self._reset_timer()
 
     def _reset_timer(self):
@@ -80,6 +79,7 @@ class App:
             self._wake()
             self._ensure_selection()
             self._refresh_display()
+            self.display.set_backlight(True)
             return
         self.selected_index = (
             (self.selected_index + direction) % len(self.playlists)
@@ -94,13 +94,13 @@ class App:
             self._wake()
             self._ensure_selection()
             self._refresh_display()
+            self.display.set_backlight(True)
             return
         self._reset_timer()
 
         p = self.playlists[self.selected_index]
         log.info("Playing: %s (%s)", p["name"], p["uri"])
         self.playing_index = self.selected_index
-        self.display.set_led(0, 0.1, 0)
         self._refresh_display()
         spotify_client.play(self.sp, p["uri"])
 
@@ -111,7 +111,6 @@ class App:
                 log.info("Idle timeout, going to sleep")
                 self.asleep = True
                 self.display.set_backlight(False)
-                self.display.set_led(0, 0, 0)
 
     def run(self):
         log.info("Ready. %d items loaded. Waiting for input...", len(self.playlists))
@@ -123,7 +122,6 @@ class App:
             pass
         finally:
             self.display.set_backlight(False)
-            self.display.set_led(0, 0, 0)
             self.encoder.cleanup()
             log.info("Stopped.")
 
