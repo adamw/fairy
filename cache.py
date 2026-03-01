@@ -63,6 +63,7 @@ def _download_image(url, dest_path):
 
 def _fetch_metadata(sp, uri_type, item_id):
     """Fetch name and image URL from Spotify API."""
+    log.debug("Fetching metadata: type=%s, id=%s", uri_type, item_id)
     if uri_type == "track":
         data = sp.track(item_id)
         name = data["name"]
