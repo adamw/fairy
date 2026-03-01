@@ -62,6 +62,7 @@ class App:
         """Wake from sleep."""
         log.info("Waking up")
         self.asleep = False
+        self.playing_index = None
         self.display.set_backlight(True)
         self._reset_timer()
 
@@ -98,10 +99,10 @@ class App:
 
         p = self.playlists[self.selected_index]
         log.info("Playing: %s (%s)", p["name"], p["uri"])
-        spotify_client.play(self.sp, p["uri"])
         self.playing_index = self.selected_index
-        self.display.set_led(0, 0.1, 0)  # green = playing
+        self.display.set_led(0, 0.1, 0)
         self._refresh_display()
+        spotify_client.play(self.sp, p["uri"])
 
     def _check_idle(self):
         if not self.asleep and self._last_interaction > 0:
