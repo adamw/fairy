@@ -1,4 +1,4 @@
-"""Fetch and cache playlist metadata and cover images from Spotify."""
+"""Fetch and cache playlist/album metadata and cover images from Spotify."""
 
 import json
 import os
@@ -14,9 +14,14 @@ IMG_WIDTH = 320
 IMG_HEIGHT = 240
 
 
-def _playlist_id(uri):
-    """Extract playlist ID from a Spotify URI."""
-    return uri.split(":")[-1]
+def _parse_uri(uri):
+    """Extract type and ID from a Spotify URI.
+
+    e.g. 'spotify:playlist:xxx' → ('playlist', 'xxx')
+         'spotify:album:yyy'    → ('album', 'yyy')
+    """
+    parts = uri.split(":")
+    return parts[1], parts[2]
 
 
 def _image_path(playlist_id):
@@ -46,8 +51,20 @@ def _download_image(url, dest_path):
     img.save(dest_path, "PNG")
 
 
+def _fetch_metadata(sp, uri_type, item_id):
+    """Fetch name and image URL from Spotify API for a playlist or album."""
+    if uri_type == "album":
+        data = sp.album(item_id)
+    else:
+        data = sp.playlist(item_id, fields="name,images")
+    name = data["name"]
+    images = data.get("images", [])
+    image_url = images[0]["url"] if images else None
+    return name, image_url
+
+
 def load_playlists(sp):
-    """Load playlist metadata, fetching from API and caching as needed.
+    """Load playlist/album metadata, fetching from API and caching as needed.
 
     Args:
         sp: authenticated spotipy.Spotify instance
@@ -60,45 +77,41 @@ def load_playlists(sp):
     updated = False
 
     for uri in config.PLAYLISTS:
-        pid = _playlist_id(uri)
-        img_path = _image_path(pid)
+        uri_type, item_id = _parse_uri(uri)
+        img_path = _image_path(item_id)
 
-        if pid in cached and os.path.exists(img_path):
+        if item_id in cached and os.path.exists(img_path):
             playlists.append({
                 "uri": uri,
-                "id": pid,
-                "name": cached[pid]["name"],
+                "id": item_id,
+                "name": cached[item_id]["name"],
                 "image_path": img_path,
             })
             continue
 
         # Fetch from API
         try:
-            data = sp.playlist(pid, fields="name,images")
-            name = data["name"]
-            images = data.get("images", [])
-            image_url = images[0]["url"] if images else None
+            name, image_url = _fetch_metadata(sp, uri_type, item_id)
 
             if image_url:
                 _download_image(image_url, img_path)
 
-            cached[pid] = {"name": name, "image_url": image_url or ""}
+            cached[item_id] = {"name": name, "image_url": image_url or ""}
             updated = True
 
             playlists.append({
                 "uri": uri,
-                "id": pid,
+                "id": item_id,
                 "name": name,
                 "image_path": img_path if image_url else None,
             })
         except Exception as e:
-            print(f"Warning: failed to fetch playlist {uri}: {e}")
-            # Use whatever we have cached, or skip
-            if pid in cached:
+            print(f"Warning: failed to fetch {uri}: {e}")
+            if item_id in cached:
                 playlists.append({
                     "uri": uri,
-                    "id": pid,
-                    "name": cached[pid]["name"],
+                    "id": item_id,
+                    "name": cached[item_id]["name"],
                     "image_path": img_path if os.path.exists(img_path) else None,
                 })
 
