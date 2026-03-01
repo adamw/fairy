@@ -240,11 +240,12 @@ The application is a single Python process with three responsibilities:
 
 5.3  Data model:
 
-    - Configuration (config.py): just a list of Spotify URIs.
-        PLAYLISTS = [
-            "spotify:playlist:xxxxx",
-            "spotify:playlist:yyyyy",
-        ]
+    - Configuration (config.py):
+        • Spotify credentials (client ID, secret, redirect URI)
+        • PLAYLISTS: list of Spotify URIs
+        • Target speaker device ID
+        • GPIO pin numbers, cache directory path, idle timeout
+      Gitignored; config.py.template checked in as reference.
 
     - At startup, fetch playlist metadata from the Spotify API:
         • name
@@ -271,18 +272,20 @@ The application is a single Python process with three responsibilities:
        - Initialize everything, enter ASLEEP state (screen off).
        - Wait for user interaction (knob turn or press).
 
-    2. User turns the knob:
-       - If asleep, wake up: turn on backlight.
+    2. Any interaction while ASLEEP (knob turn or button press):
+       - Wake up: turn on backlight.
        - If no playlist was previously selected (first activation),
          pick a random playlist as the starting selection.
+       - Show the current playlist's image and name.
+       - Reset the 60s idle timer.
+       - Do NOT play anything or change selection. Just wake up.
+
+    3. User turns the knob (while awake - not ASLEEP):
        - Increment/decrement selected_index (wrapping around).
        - Update the display with the new playlist's image and name.
        - Reset the 60s idle timer.
 
-    3. User presses the encoder button:
-       - If asleep, wake up: turn on backlight, show current playlist.
-       - If no playlist was previously selected (first activation),
-         pick a random playlist as the starting selection.
+    4. User presses the encoder button (while awake - not ASLEEP):
        - Look up the selected playlist's Spotify URI.
        - Call Spotify API: start playback of that playlist on the
          configured speaker device.
@@ -292,13 +295,13 @@ The application is a single Python process with three responsibilities:
        - Spotify repeat mode should be OFF so that playback stops
          after the last track in the playlist.
 
-    4. Idle timeout (60s with no knob/button interaction):
+    5. Idle timeout (60s with no knob/button interaction):
        - Turn off the backlight (screen goes dark).
        - Enter ASLEEP state.
        - If a playlist is playing, it continues playing on the speaker.
        - Do NOT pause or stop playback.
 
-    5. After playlist ends:
+    6. After playlist ends:
        - Nothing more plays. Spotify naturally stops after the last
          track when repeat is off.
        - The device remains in its current state (asleep or browsing).
@@ -352,26 +355,24 @@ Step 5 — Configuration (config.py)
 
 Step 6 — Main loop (main.py)
     - Load config, initialize all modules.
-    - On startup, pick a random playlist as the initial selection.
-    - Register encoder callbacks that:
-        • Wake from sleep if asleep (turn on backlight).
-        • Update selected_index and trigger display refresh.
-        • Reset the 60s idle timer.
-    - Register button callback that:
-        • Wake from sleep if asleep.
-        • Trigger Spotify playback (play_playlist + repeat off).
-        • Reset the 60s idle timer.
+    - Start in ASLEEP state (screen off, no playlist selected).
+    - Register encoder turn and button press callbacks that:
+        • If asleep: wake up (backlight on), pick random playlist if
+          none selected yet, show it on screen, and return. Do NOT
+          change selection or start playback.
+        • If awake and knob turned: change selection, refresh display.
+        • If awake and button pressed: start Spotify playback.
+        • Always reset the 60s idle timer on any interaction.
     - Idle timer: after 60s with no interaction, turn off backlight.
       Do NOT stop playback — music continues on the speaker.
     - Main loop: check idle timer, keep process alive.
     - Handle graceful shutdown (Ctrl+C / systemd stop).
 
 Step 7 — Auto-start on boot
-    - Create a systemd service:
-        /etc/systemd/system/fairy.service
-    - ExecStart pointing to the venv Python and main.py.
-    - Restart=always so it recovers from crashes.
-    - After=network-online.target to ensure WiFi is up.
+    - Create a systemd service file for the fairy app.
+    - Configure it to start after network is available, auto-restart
+      on failure, and run as the fairy user.
+    - Enable the service so it starts on every boot.
 
 Step 8 — Testing & polish
     - Test full flow: turn knob → see image → press → music plays.
@@ -384,21 +385,15 @@ Step 8 — Testing & polish
 PART 7: OPEN QUESTIONS & RESEARCH NEEDED
 ==========================================
 
-R1. Raspberry Pi OS version compatibility
-    - Verify that Bookworm 32-bit works well on Pi Zero WH.
-    - Check if displayhatmini library is compatible with Bookworm.
-    - Fallback: Bullseye 32-bit.
+R1. [RESOLVED] Raspberry Pi OS version compatibility
+    - Bookworm 32-bit works on Pi Zero WH.
+    - displayhatmini library is compatible.
 
-R2. ARMv6 compatibility
-    - Pi Zero WH is ARMv6. Some pip packages may not have pre-built wheels.
-    - May need to compile from source (numpy, Pillow) — could be slow.
-    - Check if system apt packages (python3-pil, python3-numpy) suffice.
+R2. [RESOLVED] ARMv6 compatibility
+    - pip packages work; libopenblas-dev needed for numpy.
 
-R3. Display library choice
-    - The displayhatmini library wraps ST7789 + Pygame.
-    - Alternative: use ST7789 library directly with PIL (no Pygame).
-    - Pygame adds overhead; pure PIL might be lighter on the Zero.
-    - Research which approach performs better on the limited hardware.
+R3. [RESOLVED] Display library choice
+    - displayhatmini with PIL works fine on the Zero.
 
 R4. Spotify token refresh
     - OAuth tokens expire after 1 hour. Spotipy should auto-refresh using
@@ -420,14 +415,9 @@ R6. Performance on Pi Zero
     - Optimize: pre-load images into memory, minimize per-frame work,
       use threading for Spotify API calls so the UI stays responsive.
 
-R7. Encoder at 3.3V — verify
-    - The Iduino SE055 is rated for 5V but should work at 3.3V.
-    - The pull-up resistors on the board may be sized for 5V, but
-      GPIO 2/3 have fixed 1.8kΩ pull-ups on the Pi which will help.
-    - GPIO 4 (INT/SW) has no fixed pull-up — enable the internal
-      pull-up in software (GPIO.PUD_UP), or the encoder board's own
-      pull-up may suffice.
-    - Test at 3.3V; if unreliable, add external pull-ups to 3.3V.
+R7. [RESOLVED] Encoder at 3.3V
+    - Works at 3.3V. GPIO 2/3 pull-ups help. GPIO 4 uses software
+      pull-up (GPIO.PUD_UP). Confirmed by test_encoder.py passing.
 
 R8. Breakout Garden INT pin — verify GPIO 4
     - Confirm that the INT pin on the Display HAT Mini's Breakout
@@ -459,7 +449,7 @@ Phase C — Spotify integration  (get playback control working)
     13. Verify: can list playlists, start playback on the speaker.
 
 Phase D — Application  (bring it all together)
-    14. Prepare playlist images (download or create).
+    14. Implement cache.py — fetch and cache playlist metadata + images.
     15. Implement display.py — show images and text.
     16. Implement encoder.py — read knob and button.
     17. Implement main.py — wire everything together.
@@ -488,3 +478,5 @@ Phase F — Documentation
         • How to re-authenticate if the Spotify token stops working.
         • How to check WiFi / troubleshoot (run test scripts).
         • How to update the software (git pull, restart service).
+        • Operating procedures: how to start, stop, restart the
+          service, check status, view logs, enable/disable auto-start.

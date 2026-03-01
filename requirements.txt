@@ -1,0 +1,4 @@
+displayhatmini
+rpi-lgpio
+Pillow
+spotipy

@@ -56,7 +56,9 @@ class App:
     def _on_turn(self, direction):
         if self.asleep:
             self._wake()
-        self._ensure_selection()
+            self._ensure_selection()
+            self._refresh_display()
+            return
         self.selected_index = (
             (self.selected_index + direction) % len(self.playlists)
         )
@@ -66,7 +68,9 @@ class App:
     def _on_press(self):
         if self.asleep:
             self._wake()
-        self._ensure_selection()
+            self._ensure_selection()
+            self._refresh_display()
+            return
         self._reset_timer()
 
         p = self.playlists[self.selected_index]
