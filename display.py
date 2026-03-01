@@ -48,27 +48,23 @@ class Display:
                     (0, 0, WIDTH, IMAGE_HEIGHT), fill=(40, 40, 40)
                 )
 
-        # Draw name background
-        self._draw.rectangle(
-            (0, IMAGE_HEIGHT, WIDTH, HEIGHT), fill=(0, 0, 0)
-        )
-
-        # Playing indicator
+        # Draw name bar
         if is_playing:
-            self._draw.text(
-                (8, IMAGE_HEIGHT + TEXT_AREA_HEIGHT // 2),
-                "\u25b6",
-                font=_font, fill=(0, 200, 0), anchor="lm"
-            )
-            name_x = 32
+            bar_color = (0, 100, 0)
+            text_color = (255, 255, 255)
         else:
-            name_x = 8
+            bar_color = (0, 0, 0)
+            text_color = (180, 180, 180)
+
+        self._draw.rectangle(
+            (0, IMAGE_HEIGHT, WIDTH, HEIGHT), fill=bar_color
+        )
 
         # Draw playlist name
         self._draw.text(
-            (name_x, IMAGE_HEIGHT + TEXT_AREA_HEIGHT // 2),
+            (8, IMAGE_HEIGHT + TEXT_AREA_HEIGHT // 2),
             name,
-            font=_font, fill=(255, 255, 255), anchor="lm"
+            font=_font, fill=text_color, anchor="lm"
         )
 
         self._display.display()

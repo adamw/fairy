@@ -6,9 +6,12 @@ Breakout Garden header wiring:
     SW  → INT (GPIO 4)
 """
 
+import logging
 import time
 import RPi.GPIO as GPIO
 import config
+
+log = logging.getLogger("fairy.encoder")
 
 DEBOUNCE_MS = 5
 
@@ -33,7 +36,7 @@ class Encoder:
         self._last_clk = GPIO.input(config.PIN_CLK)
 
         GPIO.add_event_detect(
-            config.PIN_CLK, GPIO.BOTH, callback=self._encoder_cb
+            config.PIN_CLK, GPIO.FALLING, callback=self._encoder_cb
         )
         GPIO.add_event_detect(
             config.PIN_SW, GPIO.FALLING, callback=self._button_cb,
@@ -56,10 +59,13 @@ class Encoder:
                 self._on_turn(direction)
 
     def _button_cb(self, channel):
-        time.sleep(0.02)
+        time.sleep(0.05)
         if GPIO.input(config.PIN_SW) == 0:
+            log.debug("Button press confirmed")
             if self._on_press:
                 self._on_press()
+        else:
+            log.debug("Button press rejected (bounce)")
 
     def cleanup(self):
         GPIO.cleanup()
