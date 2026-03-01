@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fairy tale playlist picker — main entry point."""
 
+import logging
 import random
 import time
 
@@ -10,11 +11,26 @@ import spotify_client
 from encoder import Encoder
 from display import Display
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("fairy")
+
 
 class App:
     def __init__(self):
+        log.info("Initializing...")
+        log.debug("Creating Spotify client")
         self.sp = spotify_client.create_client()
+        log.debug("Spotify client ready")
+
+        log.debug("Initializing display")
         self.display = Display()
+        log.debug("Display ready")
+
+        log.debug("Loading playlists from config (%d URIs)", len(config.PLAYLISTS))
         self.playlists = cache.load_playlists(self.sp)
 
         if not self.playlists:
@@ -28,18 +44,23 @@ class App:
         # Start with screen off
         self.display.set_backlight(False)
 
+        log.debug("Initializing encoder (CLK=%d, DT=%d, SW=%d)",
+                   config.PIN_CLK, config.PIN_DT, config.PIN_SW)
         self.encoder = Encoder(
             on_turn=self._on_turn,
             on_press=self._on_press,
         )
+        log.debug("Encoder ready")
 
     def _ensure_selection(self):
         """Pick a random playlist if none selected yet."""
         if self.selected_index is None:
             self.selected_index = random.randint(0, len(self.playlists) - 1)
+            log.info("Random selection: %s", self.playlists[self.selected_index]["name"])
 
     def _wake(self):
         """Wake from sleep."""
+        log.info("Waking up")
         self.asleep = False
         self.display.set_backlight(True)
         self._reset_timer()
@@ -63,6 +84,8 @@ class App:
             (self.selected_index + direction) % len(self.playlists)
         )
         self._reset_timer()
+        p = self.playlists[self.selected_index]
+        log.info("Selected: %s", p["name"])
         self._refresh_display()
 
     def _on_press(self):
@@ -74,6 +97,7 @@ class App:
         self._reset_timer()
 
         p = self.playlists[self.selected_index]
+        log.info("Playing: %s (%s)", p["name"], p["uri"])
         spotify_client.play(self.sp, p["uri"])
         self.playing_index = self.selected_index
         self.display.set_led(0, 0.1, 0)  # green = playing
@@ -83,13 +107,13 @@ class App:
         if not self.asleep and self._last_interaction > 0:
             elapsed = time.time() - self._last_interaction
             if elapsed >= config.IDLE_TIMEOUT_S:
+                log.info("Idle timeout, going to sleep")
                 self.asleep = True
                 self.display.set_backlight(False)
                 self.display.set_led(0, 0, 0)
 
     def run(self):
-        print(f"Fairy player ready. {len(self.playlists)} playlists loaded.")
-        print("Waiting for knob turn or press...")
+        log.info("Ready. %d items loaded. Waiting for input...", len(self.playlists))
         try:
             while True:
                 self._check_idle()
@@ -100,9 +124,12 @@ class App:
             self.display.set_backlight(False)
             self.display.set_led(0, 0, 0)
             self.encoder.cleanup()
-            print("\nStopped.")
+            log.info("Stopped.")
 
 
 if __name__ == "__main__":
+    import sys
+    if "--debug" in sys.argv:
+        logging.getLogger().setLevel(logging.DEBUG)
     app = App()
     app.run()

@@ -1,12 +1,17 @@
 """Spotify Web API client wrapper."""
 
+import logging
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import config
 
+log = logging.getLogger("fairy.spotify")
+
 
 def create_client():
     """Create an authenticated Spotify client."""
+    log.debug("Authenticating with client_id=%s...", config.SPOTIFY_CLIENT_ID[:8])
     auth_manager = SpotifyOAuth(
         client_id=config.SPOTIFY_CLIENT_ID,
         client_secret=config.SPOTIFY_CLIENT_SECRET,
@@ -19,7 +24,9 @@ def create_client():
         ]),
         cache_path=config.SPOTIFY_CACHE_PATH,
     )
-    return spotipy.Spotify(auth_manager=auth_manager)
+    client = spotipy.Spotify(auth_manager=auth_manager)
+    log.debug("Spotify client authenticated")
+    return client
 
 
 def play(sp, uri):
@@ -29,6 +36,7 @@ def play(sp, uri):
     Sets repeat to off so playback stops after the last track.
     """
     try:
+        log.debug("Starting playback: %s on device %s", uri, config.SPOTIFY_DEVICE_ID)
         if uri.startswith("spotify:track:"):
             sp.start_playback(
                 device_id=config.SPOTIFY_DEVICE_ID,
@@ -39,8 +47,9 @@ def play(sp, uri):
                 device_id=config.SPOTIFY_DEVICE_ID,
                 context_uri=uri,
             )
+        log.debug("Setting repeat off")
         sp.repeat("off", device_id=config.SPOTIFY_DEVICE_ID)
     except spotipy.exceptions.SpotifyException as e:
-        print(f"Spotify error: {e}")
+        log.error("Spotify error: %s", e)
     except Exception as e:
-        print(f"Playback error: {e}")
+        log.error("Playback error: %s", e)
