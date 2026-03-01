@@ -41,12 +41,17 @@ class Encoder:
         )
 
     def _encoder_cb(self, channel):
-        now = time.time() * 1000
-        elapsed = now - self._last_event_time
         clk = GPIO.input(config.PIN_CLK)
         dt = GPIO.input(config.PIN_DT)
+
+        if clk != 0:
+            log.debug("Encoder IGNORED (not falling): clk=%d dt=%d", clk, dt)
+            return
+
+        now = time.time() * 1000
+        elapsed = now - self._last_event_time
         if elapsed < ENCODER_DEBOUNCE_MS:
-            log.debug("Encoder FILTERED: clk=%d dt=%d elapsed=%.1fms", clk, dt, elapsed)
+            log.debug("Encoder FILTERED (bounce): clk=%d dt=%d elapsed=%.1fms", clk, dt, elapsed)
             return
         self._last_event_time = now
 
