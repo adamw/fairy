@@ -81,11 +81,12 @@ def _fetch_metadata(sp, uri_type, item_id):
     return name, image_url
 
 
-def load_playlists(sp):
+def load_playlists(sp, uris):
     """Load playlist/album metadata, fetching from API and caching as needed.
 
     Args:
         sp: authenticated spotipy.Spotify instance
+        uris: list of Spotify URIs to load
 
     Returns:
         list of dicts: [{"uri", "id", "name", "image_path"}, ...]
@@ -94,7 +95,7 @@ def load_playlists(sp):
     playlists = []
     updated = False
 
-    for uri in config.PLAYLISTS:
+    for uri in uris:
         uri_type, item_id = _parse_uri(uri)
         img_path = _image_path(item_id)
 

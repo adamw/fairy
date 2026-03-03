@@ -12,11 +12,10 @@ SPOTIFY_CLIENT_ID = ""
 SPOTIFY_CLIENT_SECRET = ""
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8888/callback"
 
-# --- Spotify playlist URIs ---
-# Run list_playlists.py to find URIs, then paste them here.
-PLAYLISTS = [
-    # "spotify:playlist:xxxxx",
-]
+# --- Playlist source (GitHub Gist) ---
+# Raw URL of a GitHub Gist containing one Spotify URI per line.
+GIST_RAW_URL = ""
+GIST_REFRESH_S = 3600
 
 # --- Spotify device ---
 # Device ID of the target speaker. Run tests/test_spotify.py to find it.

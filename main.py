@@ -7,6 +7,7 @@ import time
 
 import config
 import cache
+import playlist_source
 import spotify_client
 from encoder import Encoder
 from display import Display
@@ -30,11 +31,13 @@ class App:
         self.display = Display()
         log.debug("Display ready")
 
-        log.debug("Loading playlists from config (%d URIs)", len(config.PLAYLISTS))
-        self.playlists = cache.load_playlists(self.sp)
+        self._current_uris = playlist_source.load_uris(config.GIST_RAW_URL)
+        log.debug("Loading playlists (%d URIs)", len(self._current_uris))
+        self.playlists = cache.load_playlists(self.sp, self._current_uris)
+        self._last_gist_fetch = time.time()
 
         if not self.playlists:
-            raise RuntimeError("No playlists configured. Edit config.py.")
+            raise RuntimeError("No playlists loaded. Check your gist.")
 
         self.selected_index = None
         self.playing_index = None
@@ -112,11 +115,41 @@ class App:
                 self.asleep = True
                 self.display.set_backlight(False)
 
+    def _check_gist_refresh(self):
+        if time.time() - self._last_gist_fetch < config.GIST_REFRESH_S:
+            return
+        self._last_gist_fetch = time.time()
+        try:
+            new_uris = playlist_source.load_uris(config.GIST_RAW_URL)
+        except Exception as e:
+            log.warning("Gist refresh failed: %s", e)
+            return
+        if new_uris == self._current_uris:
+            log.debug("Gist unchanged")
+            return
+        log.info("Gist changed, reloading playlists")
+        playing_uri = (
+            self.playlists[self.playing_index]["uri"]
+            if self.playing_index is not None
+            else None
+        )
+        self._current_uris = new_uris
+        self.playlists = cache.load_playlists(self.sp, new_uris)
+        self.selected_index = None
+        # preserve playing_index if the playing URI is still present
+        self.playing_index = None
+        if playing_uri:
+            for i, p in enumerate(self.playlists):
+                if p["uri"] == playing_uri:
+                    self.playing_index = i
+                    break
+
     def run(self):
         log.info("Ready. %d items loaded. Waiting for input...", len(self.playlists))
         try:
             while True:
                 self._check_idle()
+                self._check_gist_refresh()
                 time.sleep(0.1)
         except KeyboardInterrupt:
             pass
