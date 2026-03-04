@@ -10,29 +10,13 @@
 
 ## Managing playlists
 
-### Add a playlist
+Playlists are stored in a GitHub Gist (one Spotify URI per line). The device fetches the list on startup and refreshes it hourly.
 
-1. SSH into the Pi: `ssh fairy@fairy.local`
-2. List all your playlists to find the URI:
-   ```
-   cd ~/fairy
-   source ~/fairy-env/bin/activate
-   python list_playlists.py
-   ```
-3. Copy the URI (e.g., `spotify:playlist:xxxxx`) and add it to `config.py`:
-   ```python
-   PLAYLISTS = [
-       "spotify:playlist:xxxxx",
-       "spotify:playlist:yyyyy",  # new one
-   ]
-   ```
-4. Delete the cache so images are re-fetched: `rm -rf cache/`
-5. Restart the service: `sudo systemctl restart fairy`
+### Add or remove a playlist
 
-### Remove a playlist
-
-1. Remove the URI from `config.py`.
-2. Restart the service: `sudo systemctl restart fairy`
+1. Find the URI: run `python list_playlists.py` to list your playlists.
+2. Edit your gist — add or remove URIs (lines starting with `#` are ignored).
+3. The device picks up changes automatically within an hour, or restart to apply immediately: `sudo systemctl restart fairy`
 
 ## Changing the speaker
 
@@ -96,6 +80,18 @@ sudo cp ~/fairy/fairy.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable fairy
 sudo systemctl start fairy
+```
+
+### Disable WiFi power saving
+
+To prevent the Pi from becoming unreachable over WiFi:
+```
+sudo iw wlan0 set power_save off
+```
+
+Make it persistent by adding to `/etc/rc.local` (before `exit 0`):
+```
+iw wlan0 set power_save off
 ```
 
 ## Updating the software

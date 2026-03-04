@@ -8,8 +8,10 @@ Type=simple
 User=fairy
 WorkingDirectory=/home/fairy/fairy
 ExecStart=/home/fairy/fairy-env/bin/python main.py
-Restart=always
-RestartSec=5
+Restart=on-failure
+RestartSec=30
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
