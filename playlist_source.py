@@ -16,14 +16,20 @@ def _is_valid_uri(uri):
     return len(parts) == 3 and parts[0] == "spotify"
 
 
+def _strip_comment(line):
+    """Strip inline '# ...' comments and surrounding whitespace."""
+    idx = line.find("#")
+    return line[:idx].strip() if idx >= 0 else line.strip()
+
+
 def fetch_uris(url):
     """Download gist and parse one URI per line (skip blank/comment/invalid lines)."""
     log.info("Fetching playlist URIs from %s", url)
     data = urllib.request.urlopen(url, timeout=15).read().decode("utf-8")
     uris = []
     for line in data.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
+        line = _strip_comment(line)
+        if not line:
             continue
         if not _is_valid_uri(line):
             log.warning("Skipping invalid URI: %s", line)
@@ -42,7 +48,7 @@ def _save_cache(uris):
 
 def _load_cache():
     with open(CACHE_FILE, "r") as f:
-        uris = [l.strip() for l in f if l.strip() and _is_valid_uri(l.strip())]
+        uris = [u for l in f if (u := _strip_comment(l)) and _is_valid_uri(u)]
     log.info("Loaded %d URIs from cache %s", len(uris), CACHE_FILE)
     return uris
 
