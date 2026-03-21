@@ -114,15 +114,23 @@ class App:
             self.display.show_error("Playback failed")
 
     def _process_events(self):
+        net_turn = 0
+        pressed = False
         while True:
             try:
                 event = self._events.get_nowait()
             except queue.Empty:
                 break
             if event[0] == "turn":
-                self._handle_turn(event[1])
+                net_turn += event[1]
             elif event[0] == "press":
-                self._handle_press()
+                pressed = True
+        if net_turn > 0:
+            self._handle_turn(1)
+        elif net_turn < 0:
+            self._handle_turn(-1)
+        if pressed:
+            self._handle_press()
 
     def _check_idle(self):
         if not self.asleep and self._last_interaction > 0:
@@ -185,5 +193,6 @@ if __name__ == "__main__":
     import sys
     if "--debug" in sys.argv:
         logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger("PIL").setLevel(logging.WARNING)
     app = App()
     app.run()

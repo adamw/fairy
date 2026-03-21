@@ -7,13 +7,10 @@ Breakout Garden header wiring:
 """
 
 import logging
-import time
 import RPi.GPIO as GPIO
 import config
 
 log = logging.getLogger("fairy.encoder")
-
-DEBOUNCE_S = 0.05
 
 
 class Encoder:
@@ -25,7 +22,6 @@ class Encoder:
         """
         self._on_turn = on_turn
         self._on_press = on_press
-        self._last_edge = 0.0
 
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(config.PIN_CLK, GPIO.IN)
@@ -41,21 +37,9 @@ class Encoder:
         )
 
     def _encoder_cb(self, channel):
-        clk = GPIO.input(config.PIN_CLK)
-        dt = GPIO.input(config.PIN_DT)
-
-        if clk != 0:
-            log.debug("Encoder FILTERED (clk high): clk=%d dt=%d", clk, dt)
+        if GPIO.input(config.PIN_CLK) != 0:
             return
-
-        now = time.monotonic()
-        if now - self._last_edge < DEBOUNCE_S:
-            log.debug("Encoder FILTERED (bounce): clk=%d dt=%d", clk, dt)
-            return
-        self._last_edge = now
-
-        direction = 1 if dt else -1
-        log.debug("Encoder ACCEPTED: clk=%d dt=%d direction=%d", clk, dt, direction)
+        direction = 1 if GPIO.input(config.PIN_DT) else -1
         if self._on_turn:
             self._on_turn(direction)
 
