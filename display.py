@@ -1,7 +1,11 @@
 """Display driver for the Pimoroni Display HAT Mini."""
 
+import logging
+
 from displayhatmini import DisplayHATMini
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+log = logging.getLogger("fairy.display")
 
 WIDTH = DisplayHATMini.WIDTH   # 320
 HEIGHT = DisplayHATMini.HEIGHT  # 240
@@ -41,9 +45,11 @@ class Display:
         if image_path:
             try:
                 img = Image.open(image_path)
-                img = img.resize((WIDTH, IMAGE_HEIGHT), Image.LANCZOS)
+                if img.size != (WIDTH, IMAGE_HEIGHT):
+                    img = ImageOps.fit(img, (WIDTH, IMAGE_HEIGHT), Image.LANCZOS)
                 self._buffer.paste(img, (0, 0))
             except Exception:
+                log.warning("Failed to load image: %s", image_path)
                 self._draw.rectangle(
                     (0, 0, WIDTH, IMAGE_HEIGHT), fill=(40, 40, 40)
                 )
@@ -60,13 +66,29 @@ class Display:
             (0, IMAGE_HEIGHT, WIDTH, HEIGHT), fill=bar_color
         )
 
-        # Draw playlist name
+        # Draw playlist name, truncating if too wide
+        max_width = WIDTH - 16  # 8px padding each side
+        truncated = name
+        if self._draw.textlength(name, font=_font) > max_width:
+            while len(truncated) > 1 and self._draw.textlength(truncated + "…", font=_font) > max_width:
+                truncated = truncated[:-1]
+            truncated = truncated.rstrip() + "…"
         self._draw.text(
             (8, IMAGE_HEIGHT + TEXT_AREA_HEIGHT // 2),
-            name,
+            truncated,
             font=_font, fill=text_color, anchor="lm"
         )
 
+        self._display.display()
+
+    def show_error(self, message):
+        """Show an error message on a red background."""
+        self._draw.rectangle((0, 0, WIDTH, HEIGHT), fill=(100, 0, 0))
+        self._draw.text(
+            (WIDTH // 2, HEIGHT // 2),
+            message,
+            font=_font, fill=(255, 255, 255), anchor="mm"
+        )
         self._display.display()
 
     def set_led(self, r, g, b):

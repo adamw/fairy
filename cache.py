@@ -5,7 +5,7 @@ import logging
 import os
 import urllib.request
 
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 
 import config
@@ -14,7 +14,7 @@ log = logging.getLogger("fairy.cache")
 
 METADATA_FILE = os.path.join(config.CACHE_DIR, "metadata.json")
 IMG_WIDTH = 320
-IMG_HEIGHT = 240
+IMG_HEIGHT = 200  # display height minus text area
 
 
 def _parse_uri(uri):
@@ -56,7 +56,7 @@ def _download_image(url, dest_path):
     data = urllib.request.urlopen(url, timeout=15).read()
     log.debug("Downloaded %d bytes, resizing to %dx%d", len(data), IMG_WIDTH, IMG_HEIGHT)
     img = Image.open(BytesIO(data))
-    img = img.resize((IMG_WIDTH, IMG_HEIGHT), Image.LANCZOS)
+    img = ImageOps.fit(img, (IMG_WIDTH, IMG_HEIGHT), Image.LANCZOS)
     img.save(dest_path, "PNG")
     log.debug("Saved image to %s", dest_path)
 
@@ -137,6 +137,17 @@ def load_playlists(sp, uris):
                     "name": cached[item_id]["name"],
                     "image_path": img_path if os.path.exists(img_path) else None,
                 })
+
+    # Prune orphaned cache entries
+    active_ids = {_parse_uri(uri)[1] for uri in uris}
+    orphaned = [k for k in cached if k not in active_ids]
+    for item_id in orphaned:
+        log.info("Removing orphaned cache entry: %s", item_id)
+        del cached[item_id]
+        updated = True
+        img = _image_path(item_id)
+        if os.path.exists(img):
+            os.remove(img)
 
     if updated:
         log.debug("Saving updated metadata cache")

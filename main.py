@@ -2,6 +2,7 @@
 """Fairy tale playlist picker — main entry point."""
 
 import logging
+import queue
 import random
 import time
 
@@ -43,6 +44,7 @@ class App:
         self.playing_index = None
         self.asleep = True
         self._last_interaction = 0
+        self._events = queue.Queue()
 
         # Start with screen off
         self.display.set_backlight(False)
@@ -50,8 +52,8 @@ class App:
         log.debug("Initializing encoder (CLK=%d, DT=%d, SW=%d)",
                    config.PIN_CLK, config.PIN_DT, config.PIN_SW)
         self.encoder = Encoder(
-            on_turn=self._on_turn,
-            on_press=self._on_press,
+            on_turn=lambda d: self._events.put(("turn", d)),
+            on_press=lambda: self._events.put(("press",)),
         )
         log.debug("Encoder ready")
 
@@ -77,7 +79,7 @@ class App:
         is_playing = self.selected_index == self.playing_index
         self.display.show_playlist(p["image_path"], p["name"], is_playing)
 
-    def _on_turn(self, direction):
+    def _handle_turn(self, direction):
         if self.asleep:
             self._wake()
             self._ensure_selection()
@@ -92,7 +94,7 @@ class App:
         log.info("Selected: %s", p["name"])
         self._refresh_display()
 
-    def _on_press(self):
+    def _handle_press(self):
         if self.asleep:
             self._wake()
             self._ensure_selection()
@@ -103,9 +105,24 @@ class App:
 
         p = self.playlists[self.selected_index]
         log.info("Playing: %s (%s)", p["name"], p["uri"])
-        self.playing_index = self.selected_index
-        self._refresh_display()
-        spotify_client.play(self.sp, p["uri"])
+        try:
+            spotify_client.play(self.sp, p["uri"])
+            self.playing_index = self.selected_index
+            self._refresh_display()
+        except Exception as e:
+            log.error("Playback failed: %s", e)
+            self.display.show_error("Playback failed")
+
+    def _process_events(self):
+        while True:
+            try:
+                event = self._events.get_nowait()
+            except queue.Empty:
+                break
+            if event[0] == "turn":
+                self._handle_turn(event[1])
+            elif event[0] == "press":
+                self._handle_press()
 
     def _check_idle(self):
         if not self.asleep and self._last_interaction > 0:
@@ -135,7 +152,6 @@ class App:
         )
         self._current_uris = new_uris
         self.playlists = cache.load_playlists(self.sp, new_uris)
-        self.selected_index = None
         # preserve playing_index if the playing URI is still present
         self.playing_index = None
         if playing_uri:
@@ -143,11 +159,17 @@ class App:
                 if p["uri"] == playing_uri:
                     self.playing_index = i
                     break
+        # pick a new selection and refresh display if awake
+        self.selected_index = self.playing_index
+        self._ensure_selection()
+        if not self.asleep:
+            self._refresh_display()
 
     def run(self):
         log.info("Ready. %d items loaded. Waiting for input...", len(self.playlists))
         try:
             while True:
+                self._process_events()
                 self._check_idle()
                 self._check_gist_refresh()
                 time.sleep(0.1)

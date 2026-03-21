@@ -48,7 +48,7 @@ class Encoder:
             log.debug("Encoder IGNORED (not falling): clk=%d dt=%d", clk, dt)
             return
 
-        now = time.time() * 1000
+        now = time.monotonic() * 1000
         elapsed = now - self._last_event_time
         if elapsed < ENCODER_DEBOUNCE_MS:
             log.debug("Encoder FILTERED (bounce): clk=%d dt=%d elapsed=%.1fms", clk, dt, elapsed)

@@ -35,21 +35,16 @@ def play(sp, uri):
     Handles playlists, albums, and individual tracks.
     Sets repeat to off so playback stops after the last track.
     """
-    try:
-        log.debug("Starting playback: %s on device %s", uri, config.SPOTIFY_DEVICE_ID)
-        if uri.startswith("spotify:track:"):
-            sp.start_playback(
-                device_id=config.SPOTIFY_DEVICE_ID,
-                uris=[uri],
-            )
-        else:
-            sp.start_playback(
-                device_id=config.SPOTIFY_DEVICE_ID,
-                context_uri=uri,
-            )
-        log.debug("Setting repeat off")
-        sp.repeat("off", device_id=config.SPOTIFY_DEVICE_ID)
-    except spotipy.exceptions.SpotifyException as e:
-        log.error("Spotify error: %s", e)
-    except Exception as e:
-        log.error("Playback error: %s", e)
+    log.debug("Starting playback: %s on device %s", uri, config.SPOTIFY_DEVICE_ID)
+    if uri.startswith("spotify:track:"):
+        sp.start_playback(
+            device_id=config.SPOTIFY_DEVICE_ID,
+            uris=[uri],
+        )
+    else:
+        sp.start_playback(
+            device_id=config.SPOTIFY_DEVICE_ID,
+            context_uri=uri,
+        )
+    log.debug("Setting repeat off")
+    sp.repeat("off", device_id=config.SPOTIFY_DEVICE_ID)
