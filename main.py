@@ -127,13 +127,15 @@ class App:
             elif event[0] == "press":
                 pressed = True
         now = time.time()
+        did_turn = False
         if net_turn != 0:
             if now - self._last_turn >= 0.2:
                 self._last_turn = now
                 self._handle_turn(1 if net_turn > 0 else -1)
+                did_turn = True
             else:
                 log.debug("Turn debounced (net=%+d)", net_turn)
-        if pressed:
+        if pressed and not did_turn:
             self._handle_press()
 
     def _check_idle(self):
