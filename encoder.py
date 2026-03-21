@@ -29,8 +29,7 @@ class Encoder:
         GPIO.setup(config.PIN_SW, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
         GPIO.add_event_detect(
-            config.PIN_CLK, GPIO.FALLING, callback=self._encoder_cb,
-            bouncetime=50
+            config.PIN_CLK, GPIO.FALLING, callback=self._encoder_cb
         )
         GPIO.add_event_detect(
             config.PIN_SW, GPIO.FALLING, callback=self._button_cb,
@@ -42,10 +41,11 @@ class Encoder:
         dt = GPIO.input(config.PIN_DT)
 
         if clk != 0:
+            log.debug("Encoder FILTERED: clk=%d dt=%d", clk, dt)
             return
 
         direction = 1 if dt else -1
-        log.debug("Encoder: clk=%d dt=%d direction=%d", clk, dt, direction)
+        log.debug("Encoder ACCEPTED: clk=%d dt=%d direction=%d", clk, dt, direction)
         if self._on_turn:
             self._on_turn(direction)
 
