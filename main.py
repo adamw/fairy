@@ -44,6 +44,7 @@ class App:
         self.playing_index = None
         self.asleep = True
         self._last_interaction = 0
+        self._last_turn = 0
         self._events = queue.Queue()
 
         # Start with screen off
@@ -125,10 +126,13 @@ class App:
                 net_turn += event[1]
             elif event[0] == "press":
                 pressed = True
-        if net_turn > 0:
-            self._handle_turn(1)
-        elif net_turn < 0:
-            self._handle_turn(-1)
+        now = time.time()
+        if net_turn != 0:
+            if now - self._last_turn >= 0.2:
+                self._last_turn = now
+                self._handle_turn(1 if net_turn > 0 else -1)
+            else:
+                log.debug("Turn debounced (net=%+d)", net_turn)
         if pressed:
             self._handle_press()
 

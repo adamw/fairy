@@ -37,14 +37,18 @@ class Encoder:
         )
 
     def _encoder_cb(self, channel):
-        if GPIO.input(config.PIN_CLK) != 0:
+        clk = GPIO.input(config.PIN_CLK)
+        dt = GPIO.input(config.PIN_DT)
+        if clk != 0:
+            log.debug("Encoder edge: clk=%d dt=%d FILTERED", clk, dt)
             return
-        direction = 1 if GPIO.input(config.PIN_DT) else -1
+        direction = 1 if dt else -1
+        log.debug("Encoder edge: clk=%d dt=%d dir=%+d", clk, dt, direction)
         if self._on_turn:
             self._on_turn(direction)
 
     def _button_cb(self, channel):
-        log.debug("Button press detected")
+        log.debug("Button press edge detected")
         if self._on_press:
             self._on_press()
 
