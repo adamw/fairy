@@ -2,6 +2,7 @@
 
 import logging
 import os
+import urllib.parse
 import urllib.request
 
 import config
@@ -14,6 +15,24 @@ CACHE_FILE = os.path.join(config.CACHE_DIR, "playlists.txt")
 def _is_valid_uri(uri):
     parts = uri.split(":")
     return len(parts) == 3 and parts[0] == "spotify"
+
+
+def _normalize_uri(value):
+    """Convert a Spotify share URL or URI to a canonical spotify:type:id URI.
+
+    Accepts:
+        spotify:album:xxx
+        https://open.spotify.com/album/xxx?si=...
+    Returns the spotify:type:id form, or the input unchanged if not a URL.
+    """
+    if value.startswith("https://open.spotify.com/"):
+        parsed = urllib.parse.urlparse(value)
+        # path like /album/xxx or /track/xxx
+        parts = parsed.path.strip("/").split("/")
+        if len(parts) == 2:
+            return f"spotify:{parts[0]}:{parts[1]}"
+        log.warning("Cannot parse Spotify URL path: %s", parsed.path)
+    return value
 
 
 def _strip_comment(line):
@@ -31,10 +50,11 @@ def fetch_uris(url):
         line = _strip_comment(line)
         if not line:
             continue
-        if not _is_valid_uri(line):
+        uri = _normalize_uri(line)
+        if not _is_valid_uri(uri):
             log.warning("Skipping invalid URI: %s", line)
             continue
-        uris.append(line)
+        uris.append(uri)
     log.info("Fetched %d URIs", len(uris))
     return uris
 
@@ -48,7 +68,11 @@ def _save_cache(uris):
 
 def _load_cache():
     with open(CACHE_FILE, "r") as f:
-        uris = [u for l in f if (u := _strip_comment(l)) and _is_valid_uri(u)]
+        uris = [
+            u for l in f
+            if (s := _strip_comment(l))
+            and _is_valid_uri(u := _normalize_uri(s))
+        ]
     log.info("Loaded %d URIs from cache %s", len(uris), CACHE_FILE)
     return uris
 
