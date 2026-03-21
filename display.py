@@ -18,8 +18,12 @@ try:
     _font = ImageFont.truetype(
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22
     )
+    _font_small = ImageFont.truetype(
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16
+    )
 except OSError:
     _font = ImageFont.load_default()
+    _font_small = _font
 
 
 class Display:
@@ -66,20 +70,48 @@ class Display:
             (0, IMAGE_HEIGHT, WIDTH, HEIGHT), fill=bar_color
         )
 
-        # Draw playlist name, truncating if too wide
+        # Draw playlist name — single line at 22px, or two lines at 16px
         max_width = WIDTH - 16  # 8px padding each side
-        truncated = name
-        if self._draw.textlength(name, font=_font) > max_width:
-            while len(truncated) > 1 and self._draw.textlength(truncated + "…", font=_font) > max_width:
-                truncated = truncated[:-1]
-            truncated = truncated.rstrip() + "…"
-        self._draw.text(
-            (8, IMAGE_HEIGHT + TEXT_AREA_HEIGHT // 2),
-            truncated,
-            font=_font, fill=text_color, anchor="lm"
-        )
+        if self._draw.textlength(name, font=_font) <= max_width:
+            self._draw.text(
+                (8, IMAGE_HEIGHT + TEXT_AREA_HEIGHT // 2),
+                name,
+                font=_font, fill=text_color, anchor="lm"
+            )
+        else:
+            lines = self._wrap_text(name, _font_small, max_width, max_lines=2)
+            y = IMAGE_HEIGHT + (TEXT_AREA_HEIGHT - len(lines) * 20) // 2
+            for line in lines:
+                self._draw.text((8, y), line, font=_font_small, fill=text_color)
+                y += 20
 
         self._display.display()
+
+    def _wrap_text(self, text, font, max_width, max_lines=2):
+        """Word-wrap text into lines that fit max_width, truncating with ellipsis."""
+        words = text.split()
+        lines = []
+        current = ""
+        for word in words:
+            test = f"{current} {word}".strip()
+            if self._draw.textlength(test, font=font) <= max_width:
+                current = test
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+                if len(lines) == max_lines:
+                    break
+        if current and len(lines) < max_lines:
+            lines.append(current)
+        # Truncate last line if needed
+        if lines:
+            last = lines[-1]
+            if self._draw.textlength(last, font=font) > max_width:
+                while len(last) > 1 and self._draw.textlength(last + "…", font=font) > max_width:
+                    last = last[:-1]
+                lines[-1] = last.rstrip() + "…"
+        return lines
 
     def show_error(self, message):
         """Show an error message on a red background."""
