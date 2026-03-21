@@ -108,3 +108,8 @@ source ~/fairy-env/bin/activate
 pip install -r requirements.txt
 sudo systemctl restart fairy
 ```
+
+In one command:
+```
+git pull && sudo systemctl restart fairy && journalctl -u fairy -f
+```
