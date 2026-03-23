@@ -186,6 +186,7 @@ class App:
                 self._process_events()
                 self._check_idle()
                 self._check_gist_refresh()
+                spotify_client.refresh_token_if_needed(self.sp)
                 time.sleep(0.1)
         except KeyboardInterrupt:
             pass
