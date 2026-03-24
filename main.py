@@ -106,12 +106,13 @@ class App:
 
         p = self.playlists[self.selected_index]
         log.info("Playing: %s (%s)", p["name"], p["uri"])
+        self.playing_index = self.selected_index
+        self._refresh_display()
         try:
             spotify_client.play(self.sp, p["uri"])
-            self.playing_index = self.selected_index
-            self._refresh_display()
         except Exception as e:
             log.error("Playback failed: %s", e)
+            self.playing_index = None
             self.display.show_error("Playback failed")
 
     def _process_events(self):
