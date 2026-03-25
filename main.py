@@ -127,7 +127,6 @@ class App:
                 net_turn += event[1]
             elif event[0] == "press":
                 pressed = True
-        was_asleep = self.asleep
         now = time.time()
         did_turn = False
         if net_turn != 0:
@@ -137,7 +136,7 @@ class App:
                 did_turn = True
             else:
                 log.debug("Turn debounced (net=%+d)", net_turn)
-        if pressed and not did_turn and not was_asleep:
+        if pressed and not did_turn:
             self._handle_press()
 
     def _check_idle(self):
