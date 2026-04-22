@@ -21,9 +21,13 @@ try:
     _font_small = ImageFont.truetype(
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16
     )
+    _font_large = ImageFont.truetype(
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32
+    )
 except OSError:
     _font = ImageFont.load_default()
     _font_small = _font
+    _font_large = _font
 
 
 class Display:
@@ -42,21 +46,25 @@ class Display:
         return self._backlight_on
 
     def show_playlist(self, image_path, name, is_playing=False):
-        """Show a playlist cover image with name below."""
+        """Show a playlist cover image with name below, or a text-only view
+        if image_path is None (e.g. MP3 entries)."""
         self._draw.rectangle((0, 0, WIDTH, HEIGHT), fill=(0, 0, 0))
 
-        # Draw cover image
-        if image_path:
-            try:
-                img = Image.open(image_path)
-                if img.size != (WIDTH, IMAGE_HEIGHT):
-                    img = ImageOps.fit(img, (WIDTH, IMAGE_HEIGHT), Image.LANCZOS)
-                self._buffer.paste(img, (0, 0))
-            except Exception:
-                log.warning("Failed to load image: %s", image_path)
-                self._draw.rectangle(
-                    (0, 0, WIDTH, IMAGE_HEIGHT), fill=(40, 40, 40)
-                )
+        if image_path is None:
+            self._draw_text_only(name, is_playing)
+            self._display.display()
+            return
+
+        try:
+            img = Image.open(image_path)
+            if img.size != (WIDTH, IMAGE_HEIGHT):
+                img = ImageOps.fit(img, (WIDTH, IMAGE_HEIGHT), Image.LANCZOS)
+            self._buffer.paste(img, (0, 0))
+        except Exception:
+            log.warning("Failed to load image: %s", image_path)
+            self._draw.rectangle(
+                (0, 0, WIDTH, IMAGE_HEIGHT), fill=(40, 40, 40)
+            )
 
         # Draw name bar
         if is_playing:
@@ -86,6 +94,33 @@ class Display:
                 y += 20
 
         self._display.display()
+
+    def _draw_text_only(self, name, is_playing):
+        """Centered title across the whole screen; used when there's no cover image."""
+        bg_color = (0, 60, 0) if is_playing else (30, 30, 30)
+        text_color = (255, 255, 255) if is_playing else (220, 220, 220)
+        self._draw.rectangle((0, 0, WIDTH, HEIGHT), fill=bg_color)
+
+        max_width = WIDTH - 16
+        # Try large font on one line; else large on up to 3 lines; else medium on up to 4.
+        if self._draw.textlength(name, font=_font_large) <= max_width:
+            lines, font, line_h = [name], _font_large, 36
+        else:
+            lines = self._wrap_text(name, _font_large, max_width, max_lines=3)
+            if len(lines) <= 3:
+                font, line_h = _font_large, 36
+            else:
+                lines = self._wrap_text(name, _font, max_width, max_lines=4)
+                font, line_h = _font, 26
+
+        total_h = len(lines) * line_h
+        y = (HEIGHT - total_h) // 2
+        for line in lines:
+            self._draw.text(
+                (WIDTH // 2, y + line_h // 2),
+                line, font=font, fill=text_color, anchor="mm",
+            )
+            y += line_h
 
     def _wrap_text(self, text, font, max_width, max_lines=2):
         """Word-wrap text into lines that fit max_width, truncating with ellipsis."""

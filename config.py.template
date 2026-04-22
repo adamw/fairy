@@ -21,6 +21,11 @@ GIST_REFRESH_S = 3600
 # Device ID of the target speaker. Run tests/test_spotify.py to find it.
 SPOTIFY_DEVICE_ID = ""
 
+# --- Chromecast device (for mp3 playback) ---
+# Friendly name of the Chromecast-built-in speaker (e.g. "Bose Smart Speaker 500").
+# Run tests/test_chromecast.py to discover available devices.
+CHROMECAST_NAME = ""
+
 # --- GPIO pins (Breakout Garden header) ---
 PIN_CLK = 2   # Encoder CLK → SDA
 PIN_DT = 3    # Encoder DT  → SCL

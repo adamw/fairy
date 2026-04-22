@@ -8,6 +8,7 @@ import time
 
 import config
 import cache
+import mp3_client
 import playlist_source
 import spotify_client
 from encoder import Encoder
@@ -32,10 +33,12 @@ class App:
         self.display = Display()
         log.debug("Display ready")
 
-        self._current_uris = playlist_source.load_uris(config.GIST_RAW_URL)
-        log.debug("Loading playlists (%d URIs)", len(self._current_uris))
-        self.playlists = cache.load_playlists(self.sp, self._current_uris)
+        self._current_entries = playlist_source.load_entries(config.GIST_RAW_URL)
+        log.debug("Loading playlists (%d entries)", len(self._current_entries))
+        self.playlists = cache.load_playlists(self.sp, self._current_entries)
         self._last_gist_fetch = time.time()
+
+        mp3_client.connect()
 
         if not self.playlists:
             raise RuntimeError("No playlists loaded. Check your gist.")
@@ -109,7 +112,10 @@ class App:
         self.playing_index = self.selected_index
         self._refresh_display()
         try:
-            spotify_client.play(self.sp, p["uri"])
+            if p["uri"].startswith("mp3|"):
+                mp3_client.play(p["uri"])
+            else:
+                spotify_client.play(self.sp, p["uri"])
         except Exception as e:
             log.error("Playback failed: %s", e)
             self.playing_index = None
@@ -152,11 +158,11 @@ class App:
             return
         self._last_gist_fetch = time.time()
         try:
-            new_uris = playlist_source.load_uris(config.GIST_RAW_URL)
+            new_entries = playlist_source.load_entries(config.GIST_RAW_URL)
         except Exception as e:
             log.warning("Gist refresh failed: %s", e)
             return
-        if new_uris == self._current_uris:
+        if new_entries == self._current_entries:
             log.debug("Gist unchanged")
             return
         log.info("Gist changed, reloading playlists")
@@ -165,8 +171,8 @@ class App:
             if self.playing_index is not None
             else None
         )
-        self._current_uris = new_uris
-        self.playlists = cache.load_playlists(self.sp, new_uris)
+        self._current_entries = new_entries
+        self.playlists = cache.load_playlists(self.sp, new_entries)
         # preserve playing_index if the playing URI is still present
         self.playing_index = None
         if playing_uri:

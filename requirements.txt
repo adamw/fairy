@@ -2,3 +2,5 @@ displayhatmini
 rpi-lgpio
 Pillow
 spotipy
+pychromecast
+mutagen
