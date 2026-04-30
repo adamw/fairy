@@ -15,8 +15,12 @@ import time
 import pychromecast
 import config
 
+known_hosts = [config.CHROMECAST_HOST] if getattr(config, "CHROMECAST_HOST", "") else None
+
 print("=== Chromecast discovery ===")
-casts, browser = pychromecast.get_chromecasts(timeout=10)
+if known_hosts:
+    print(f"  Using known host: {known_hosts[0]}")
+casts, browser = pychromecast.get_chromecasts(timeout=10, known_hosts=known_hosts)
 
 if not casts:
     print("  No Chromecast devices found on the LAN.")

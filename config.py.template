@@ -26,6 +26,11 @@ SPOTIFY_DEVICE_ID = ""
 # Run tests/test_chromecast.py to discover available devices.
 CHROMECAST_NAME = ""
 
+# Optional fallback if mDNS discovery doesn't reach the speaker (e.g. router
+# blocks multicast across 2.4/5 GHz bands). Set to the speaker's LAN IP and
+# reserve it in your router's DHCP table so it doesn't change.
+CHROMECAST_HOST = ""
+
 # --- GPIO pins (Breakout Garden header) ---
 PIN_CLK = 2   # Encoder CLK → SDA
 PIN_DT = 3    # Encoder DT  → SCL
