@@ -2,11 +2,13 @@
 
 The speaker (Bose 500 with Chromecast built-in) fetches the URL directly —
 the Pi doesn't proxy the audio.
+
+pychromecast is imported lazily inside functions so that just importing this
+module doesn't pull in zeroconf (which has been observed to interact badly
+with rpi-lgpio's edge detection on the Pi Zero).
 """
 
 import logging
-
-import pychromecast
 
 import config
 import playlist_source
@@ -21,6 +23,8 @@ _browser = None
 
 def _get_cast():
     """Discover the configured Chromecast (lazy, cached) and return the device."""
+    import pychromecast
+
     global _cast, _browser
     if _cast is not None and _cast.socket_client.is_connected:
         return _cast
