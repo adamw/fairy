@@ -38,8 +38,6 @@ class App:
         self.playlists = cache.load_playlists(self.sp, self._current_entries)
         self._last_gist_fetch = time.time()
 
-        mp3_client.connect()
-
         if not self.playlists:
             raise RuntimeError("No playlists loaded. Check your gist.")
 
@@ -53,6 +51,9 @@ class App:
         # Start with screen off
         self.display.set_backlight(False)
 
+        # Claim GPIO before pychromecast spawns its zeroconf threads —
+        # rpi-lgpio's add_event_detect fails ("Failed to add edge detection")
+        # if called after those threads are running.
         log.debug("Initializing encoder (CLK=%d, DT=%d, SW=%d)",
                    config.PIN_CLK, config.PIN_DT, config.PIN_SW)
         self.encoder = Encoder(
@@ -60,6 +61,8 @@ class App:
             on_press=lambda: self._events.put(("press",)),
         )
         log.debug("Encoder ready")
+
+        mp3_client.connect()
 
     def _ensure_selection(self):
         """Pick a random playlist if none selected yet."""
