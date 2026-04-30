@@ -25,11 +25,12 @@ def _get_cast():
     if _cast is not None and _cast.socket_client.is_connected:
         return _cast
 
-    known_hosts = [config.CHROMECAST_HOST] if config.CHROMECAST_HOST else None
+    chromecast_host = getattr(config, "CHROMECAST_HOST", "")
+    known_hosts = [chromecast_host] if chromecast_host else None
     log.info(
         "Discovering Chromecast: %s%s",
         config.CHROMECAST_NAME,
-        f" (known host: {config.CHROMECAST_HOST})" if known_hosts else "",
+        f" (known host: {chromecast_host})" if known_hosts else "",
     )
     casts, browser = pychromecast.get_listed_chromecasts(
         friendly_names=[config.CHROMECAST_NAME],
