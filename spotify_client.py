@@ -42,12 +42,19 @@ def refresh_token_if_needed(sp):
     This protects against clock skew on the Pi Zero (no hardware RTC),
     where spotipy's built-in refresh thinks the token is still valid
     but Spotify's servers reject it as expired.
+
+    Tolerates transient network failures: logs and backs off for a minute
+    instead of crashing the service.
     """
     global _last_token_refresh
     now = time.monotonic()
     if now - _last_token_refresh < TOKEN_REFRESH_INTERVAL_S:
         return
-    _force_token_refresh(sp)
+    try:
+        _force_token_refresh(sp)
+    except Exception as e:
+        log.warning("Token refresh failed, will retry in ~1min: %s", e)
+        _last_token_refresh = now - TOKEN_REFRESH_INTERVAL_S + 60
 
 
 def _force_token_refresh(sp):
