@@ -79,3 +79,22 @@ def play(entry):
     mc = cast.media_controller
     mc.play_media(url, "audio/mpeg", title=title)
     mc.block_until_active(timeout=DISCOVERY_TIMEOUT_S)
+
+
+def is_active():
+    """Poll the Chromecast and return True if it is still playing or buffering.
+
+    Also serves as a keep-alive: the status request prevents the Chromecast
+    from idling out the media session.
+    """
+    if _cast is None or not _cast.socket_client.is_connected:
+        return False
+    try:
+        mc = _cast.media_controller
+        mc.update_status()
+        state = mc.status.player_state
+        log.debug("Chromecast player_state: %s", state)
+        return state in ("PLAYING", "BUFFERING")
+    except Exception as e:
+        log.warning("Failed to poll Chromecast status: %s", e)
+        return False

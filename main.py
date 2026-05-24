@@ -46,6 +46,7 @@ class App:
         self.asleep = True
         self._last_interaction = 0
         self._last_turn = 0
+        self._last_mp3_poll = 0
         self._events = queue.Queue()
 
         # Start with screen off
@@ -117,6 +118,7 @@ class App:
         try:
             if p["uri"].startswith("mp3|"):
                 mp3_client.play(p["uri"])
+                self._last_mp3_poll = time.time()
             else:
                 spotify_client.play(self.sp, p["uri"])
         except Exception as e:
@@ -147,6 +149,22 @@ class App:
                 log.debug("Turn debounced (net=%+d)", net_turn)
         if pressed and not did_turn:
             self._handle_press()
+
+    def _check_mp3_status(self):
+        """Poll Chromecast status to keep the session alive and detect track end."""
+        if self.playing_index is None:
+            return
+        if not self.playlists[self.playing_index]["uri"].startswith("mp3|"):
+            return
+        now = time.time()
+        if now - self._last_mp3_poll < 30:
+            return
+        self._last_mp3_poll = now
+        if not mp3_client.is_active():
+            log.info("MP3 playback ended")
+            self.playing_index = None
+            if not self.asleep:
+                self._refresh_display()
 
     def _check_idle(self):
         if not self.asleep and self._last_interaction > 0:
@@ -194,6 +212,7 @@ class App:
         try:
             while True:
                 self._process_events()
+                self._check_mp3_status()
                 self._check_idle()
                 self._check_gist_refresh()
                 spotify_client.refresh_token_if_needed(self.sp)
