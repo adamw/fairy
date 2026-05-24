@@ -91,6 +91,14 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         log.debug(fmt, *args)
 
+    def log_error(self, fmt, *args):
+        log.debug(fmt, *args)
+
+
+class _Server(http.server.HTTPServer):
+    def handle_error(self, request, client_address):
+        log.debug("Connection error from %s (client likely disconnected)", client_address[0])
+
 
 def start():
     """Start the file server in a daemon thread. Idempotent."""
@@ -98,7 +106,7 @@ def start():
     if _server is not None:
         return
     os.makedirs(SERVE_DIR, exist_ok=True)
-    _server = http.server.HTTPServer(("0.0.0.0", PORT), _Handler)
+    _server = _Server(("0.0.0.0", PORT), _Handler)
     threading.Thread(target=_server.serve_forever, daemon=True).start()
     log.info("MP3 server listening on port %d", PORT)
 
