@@ -11,6 +11,7 @@ with rpi-lgpio's edge detection on the Pi Zero).
 import logging
 
 import config
+import mp3_server
 import playlist_source
 
 log = logging.getLogger("fairy.mp3")
@@ -74,27 +75,9 @@ def connect():
 def play(entry):
     """Play an mp3 entry (format: 'mp3|URL|Title') on the Chromecast."""
     url, title = playlist_source.parse_mp3(entry)
-    log.debug("Starting MP3 playback: %s (%s)", title, url)
+    local_url = mp3_server.ensure_cached(url)
+    log.debug("Starting MP3 playback: %s (%s)", title, local_url)
     cast = _get_cast()
     mc = cast.media_controller
-    mc.play_media(url, "audio/mpeg", title=title)
+    mc.play_media(local_url, "audio/mpeg", title=title)
     mc.block_until_active(timeout=DISCOVERY_TIMEOUT_S)
-
-
-def is_active():
-    """Poll the Chromecast and return True if it is still playing or buffering.
-
-    Also serves as a keep-alive: the status request prevents the Chromecast
-    from idling out the media session.
-    """
-    if _cast is None or not _cast.socket_client.is_connected:
-        return False
-    try:
-        mc = _cast.media_controller
-        mc.update_status()
-        state = mc.status.player_state
-        log.debug("Chromecast player_state: %s", state)
-        return state in ("PLAYING", "BUFFERING")
-    except Exception as e:
-        log.warning("Failed to poll Chromecast status: %s", e)
-        return False
